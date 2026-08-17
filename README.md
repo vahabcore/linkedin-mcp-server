@@ -1,5 +1,4 @@
 
-https://github.com/user-attachments/assets/9a68e67b-2702-4abe-9599-cbedb28c57a8
 # LinkedIn MCP Server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
