@@ -9,8 +9,24 @@ export function getHeaders() {
     Authorization: `Bearer ${ACCESS_TOKEN}`,
     "Content-Type": "application/json",
     "X-Restli-Protocol-Version": "2.0.0",
-    "LinkedIn-Version": "202405",
+    "LinkedIn-Version": "202503",
   };
+}
+
+export function normalizePostUrn(input, defaultType = "ugcPost") {
+  if (!input) return "";
+  const str = String(input).trim();
+  const digitMatch = str.match(/\d{15,22}/);
+  if (digitMatch) {
+    return `urn:li:${defaultType}:${digitMatch[0]}`;
+  }
+  if (str.startsWith("urn:li:")) {
+    if (str.startsWith("urn:li:activity:")) {
+      return str.replace("urn:li:activity:", `urn:li:${defaultType}:`);
+    }
+    return str;
+  }
+  return `urn:li:${defaultType}:${str}`;
 }
 
 export async function createTextPost(content) {
@@ -88,32 +104,90 @@ export async function getUserProfile() {
   return response.json();
 }
 
-export async function deletePost(postUrn) {
-  const normalizedUrn = postUrn.replace("urn:li:share:", "urn:li:ugcPost:");
-  const encodedUrn = encodeURIComponent(normalizedUrn);
-
-  const response = await fetch(
-    `https://api.linkedin.com/v2/ugcPosts/${encodedUrn}`,
-    {
-      method: "DELETE",
-      headers: getHeaders(),
-    }
-  );
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`LinkedIn API error ${response.status}: ${errorBody}`);
+export async function deletePost(postIdentifier) {
+  if (!postIdentifier) {
+    throw new Error("Post URN or ID is required");
   }
 
-  return { success: true, deletedUrn: postUrn };
+  const str = String(postIdentifier).trim();
+  const digitMatch = str.match(/\d{15,22}/);
+  const id = digitMatch ? digitMatch[0] : str.replace(/^urn:li:[^:]+:/, "");
+
+  const candidateUrns = [
+    `urn:li:ugcPost:${id}`,
+    `urn:li:share:${id}`,
+    str.startsWith("urn:li:") ? str : null,
+  ].filter(Boolean);
+
+  let success = false;
+  let lastError = null;
+
+  // 1. Delete share directly via /v2/shares/{id} (Removes feed activity card from profile)
+  try {
+    const shareRes = await fetch(`https://api.linkedin.com/v2/shares/${id}`, {
+      method: "DELETE",
+      headers: getHeaders(),
+    });
+    if (shareRes.ok || shareRes.status === 204 || shareRes.status === 200) {
+      success = true;
+    }
+  } catch (err) {
+    lastError = err;
+  }
+
+  // 2. Delete UGC post / REST post across candidate URNs
+  for (const urn of candidateUrns) {
+    const encodedUrn = encodeURIComponent(urn);
+
+    try {
+      const response = await fetch(
+        `https://api.linkedin.com/v2/ugcPosts/${encodedUrn}`,
+        {
+          method: "DELETE",
+          headers: getHeaders(),
+        }
+      );
+
+      if (response.ok || response.status === 204 || response.status === 200) {
+        success = true;
+      } else if (!success) {
+        lastError = new Error(`LinkedIn API error ${response.status}: ${await response.text()}`);
+      }
+    } catch (err) {
+      if (!success) lastError = err;
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.linkedin.com/rest/posts/${encodedUrn}`,
+        {
+          method: "DELETE",
+          headers: getHeaders(),
+        }
+      );
+
+      if (response.ok || response.status === 204 || response.status === 200) {
+        success = true;
+      }
+    } catch {
+      // Continue
+    }
+  }
+
+  if (success) {
+    return { success: true, deletedUrn: postIdentifier };
+  }
+
+  throw lastError || new Error(`Failed to delete post: ${postIdentifier}`);
 }
 
 export async function reactToPost(postUrn, reactionType) {
+  const normalizedUrn = normalizePostUrn(postUrn, "ugcPost");
   const response = await fetch("https://api.linkedin.com/v2/reactions", {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify({
-      root: postUrn,
+      root: normalizedUrn,
       reactionType,
       actor: AUTHOR_URN,
     }),
@@ -124,12 +198,13 @@ export async function reactToPost(postUrn, reactionType) {
     throw new Error(`LinkedIn API error ${response.status}: ${errorBody}`);
   }
 
-  return { success: true, postUrn, reactionType };
+  return { success: true, postUrn: normalizedUrn, reactionType };
 }
 
 export async function removeReaction(postUrn) {
+  const normalizedUrn = normalizePostUrn(postUrn, "ugcPost");
   const actor = encodeURIComponent(AUTHOR_URN);
-  const entity = encodeURIComponent(postUrn);
+  const entity = encodeURIComponent(normalizedUrn);
 
   const response = await fetch(
     `https://api.linkedin.com/v2/reactions/(actor:${actor},entity:${entity})`,
@@ -144,11 +219,12 @@ export async function removeReaction(postUrn) {
     throw new Error(`LinkedIn API error ${response.status}: ${errorBody}`);
   }
 
-  return { success: true, postUrn };
+  return { success: true, postUrn: normalizedUrn };
 }
 
 export async function commentOnPost(postUrn, commentText) {
-  const encodedUrn = encodeURIComponent(postUrn);
+  const normalizedUrn = normalizePostUrn(postUrn, "ugcPost");
+  const encodedUrn = encodeURIComponent(normalizedUrn);
   const response = await fetch(
     `https://api.linkedin.com/v2/socialActions/${encodedUrn}/comments`,
     {
@@ -170,7 +246,8 @@ export async function commentOnPost(postUrn, commentText) {
 }
 
 export async function deleteComment(postUrn, commentId) {
-  const encodedUrn = encodeURIComponent(postUrn);
+  const normalizedUrn = normalizePostUrn(postUrn, "ugcPost");
+  const encodedUrn = encodeURIComponent(normalizedUrn);
   const response = await fetch(
     `https://api.linkedin.com/v2/socialActions/${encodedUrn}/comments/${commentId}`,
     {
@@ -184,11 +261,12 @@ export async function deleteComment(postUrn, commentId) {
     throw new Error(`LinkedIn API error ${response.status}: ${errorBody}`);
   }
 
-  return { success: true, postUrn, commentId };
+  return { success: true, postUrn: normalizedUrn, commentId };
 }
 
 export async function replyToComment(postUrn, parentCommentUrn, replyText) {
-  const encodedUrn = encodeURIComponent(postUrn);
+  const normalizedUrn = normalizePostUrn(postUrn, "ugcPost");
+  const encodedUrn = encodeURIComponent(normalizedUrn);
   const response = await fetch(
     `https://api.linkedin.com/v2/socialActions/${encodedUrn}/comments`,
     {
@@ -334,7 +412,8 @@ export async function createPollPost(question, options, duration) {
 }
 
 export async function getPostStats(postUrn) {
-  const encodedUrn = encodeURIComponent(postUrn);
+  const normalizedUrn = normalizePostUrn(postUrn, "ugcPost");
+  const encodedUrn = encodeURIComponent(normalizedUrn);
   const response = await fetch(
     `https://api.linkedin.com/v2/socialMetadata/${encodedUrn}`,
     {

@@ -48,7 +48,7 @@ describe("linkedinClient", () => {
 
     it("should include LinkedIn-Version header", () => {
       const headers = getHeaders();
-      expect(headers["LinkedIn-Version"]).toBe("202405");
+      expect(headers["LinkedIn-Version"]).toBe("202503");
     });
   });
 
@@ -227,6 +227,40 @@ describe("linkedinClient", () => {
         expect.objectContaining({ method: "DELETE" })
       );
       expect(result).toEqual({ success: true, deletedUrn: urn });
+    });
+
+    it("should delete post when passed raw numeric ID", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve({}),
+        })
+      );
+
+      const result = await deletePost("1234567890123456789");
+      expect(fetch).toHaveBeenCalledWith(
+        `https://api.linkedin.com/v2/ugcPosts/${encodeURIComponent("urn:li:ugcPost:1234567890123456789")}`,
+        expect.objectContaining({ method: "DELETE" })
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it("should delete post when passed a LinkedIn web URL", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve({}),
+        })
+      );
+
+      const result = await deletePost("https://www.linkedin.com/feed/update/urn:li:activity:1234567890123456789/");
+      expect(fetch).toHaveBeenCalledWith(
+        `https://api.linkedin.com/v2/ugcPosts/${encodeURIComponent("urn:li:ugcPost:1234567890123456789")}`,
+        expect.objectContaining({ method: "DELETE" })
+      );
+      expect(result.success).toBe(true);
     });
 
     it("should throw when post is not found (404)", async () => {
