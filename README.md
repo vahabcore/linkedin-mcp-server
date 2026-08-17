@@ -1,3 +1,4 @@
+
 # LinkedIn MCP Server
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
@@ -8,6 +9,8 @@
 A production-ready [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server connecting AI agents (Google Gemini Spark, OpenAI Codex, Claude Desktop, Cursor, Windsurf) to the official **LinkedIn REST API**.
 
 Enables AI agents to autonomously draft and publish text updates, share rich link previews, upload images, create interactive polls, manage existing posts, and engage with reactions and threaded comments.
+
+https://github.com/user-attachments/assets/cda965be-d6a2-4a37-8d3c-29a68a9959e1
 
 ---
 
