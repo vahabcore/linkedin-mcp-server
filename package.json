@@ -1,0 +1,36 @@
+{
+  "name": "linkedin-mcp-server",
+  "version": "2.0.0",
+  "description": "Model Context Protocol (MCP) server for LinkedIn REST API — enables AI agents to post content, share links, upload images, create polls, and engage on LinkedIn",
+  "type": "module",
+  "main": "server.js",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "linkedin",
+    "linkedin-api",
+    "ai",
+    "gemini",
+    "claude",
+    "codex",
+    "agents"
+  ],
+  "author": "Abdulvahab Shaikh",
+  "license": "MIT",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.1"
+  }
+}
